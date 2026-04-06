@@ -12,6 +12,23 @@ function normalizeOptionalString(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeOptionalHttpsUrl(value) {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.toString();
+  } catch (_) {
+    return null;
+  }
+}
+
 async function upsertUserByFirebaseUid(decodedToken) {
   const firebaseUid = normalizeOptionalString(decodedToken?.uid);
   if (!firebaseUid) {
@@ -20,6 +37,7 @@ async function upsertUserByFirebaseUid(decodedToken) {
 
   const email = normalizeOptionalString(decodedToken.email);
   const name = normalizeOptionalString(decodedToken.name);
+  const avatarUrl = normalizeOptionalHttpsUrl(decodedToken.picture);
 
   const [existingRows] = await pool.execute(
     'SELECT id, is_deleted FROM users WHERE firebase_uid = ? LIMIT 1',
@@ -36,18 +54,19 @@ async function upsertUserByFirebaseUid(decodedToken) {
       `UPDATE users
        SET email = COALESCE(?, email),
            name = COALESCE(?, name),
+           avatar_url = COALESCE(?, avatar_url),
            updated_at = NOW()
        WHERE id = ?`,
-      [email, name, userId],
+      [email, name, avatarUrl, userId],
     );
     return { userId, firebaseUid };
   }
 
   try {
     const [insertResult] = await pool.execute(
-      `INSERT INTO users (firebase_uid, email, name, language, timezone, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-      [firebaseUid, email, name || 'User', 'tr', 'Europe/Istanbul'],
+      `INSERT INTO users (firebase_uid, email, name, language, timezone, avatar_url, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [firebaseUid, email, name || 'User', 'tr', 'Europe/Istanbul', avatarUrl],
     );
 
     return {
