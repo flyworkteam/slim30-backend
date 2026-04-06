@@ -35,12 +35,6 @@ async function startTrialHandler(req, res, next) {
 
 async function activateHandler(req, res, next) {
   try {
-    const expectedSecret = process.env.PREMIUM_ADMIN_SECRET;
-    const providedSecret = req.headers['x-premium-admin-secret'];
-    if (!expectedSecret || providedSecret !== expectedSecret) {
-      throw new AppError('Forbidden premium activation request', 403);
-    }
-
     const payload = req.validated?.body || validateActivatePayload(req.body);
     const status = await activatePremium(req.userId, payload);
     res.status(201).json({
@@ -55,12 +49,6 @@ async function activateHandler(req, res, next) {
 
 async function webhookHandler(req, res, next) {
   try {
-    const expectedSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
-    const authHeader = req.headers.authorization;
-    if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
-      throw new AppError('Unauthorized webhook request', 401);
-    }
-
     await processWebhookEvent(req.body?.event);
     res.json({ success: true, data: { ok: true }, error: null });
   } catch (error) {

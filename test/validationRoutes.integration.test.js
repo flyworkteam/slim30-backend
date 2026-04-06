@@ -107,7 +107,7 @@ test('onboarding route rejects empty answers payload', async () => {
   assert.match(String(body.error), /answers must be a non-empty array/i);
 });
 
-test('premium activate route rejects invalid payload before secret check', async () => {
+test('premium activate route rejects request without admin secret before payload validation', async () => {
   const { response, body } = await request('/api/premium/activate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -119,7 +119,7 @@ test('premium activate route rejects invalid payload before secret check', async
     }),
   });
 
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 403);
   assert.equal(body.success, false);
-  assert.match(String(body.error), /planType must be one of/i);
+  assert.match(String(body.error), /forbidden premium activation request/i);
 });

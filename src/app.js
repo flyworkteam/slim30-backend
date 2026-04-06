@@ -8,10 +8,22 @@ const AppError = require('./utils/appError');
 
 const app = express();
 
+app.disable('x-powered-by');
+
 app.use(helmet());
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((v) => v.trim()).filter(Boolean)
+  ? process.env.ALLOWED_ORIGINS
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return new URL(value).origin;
+      } catch (error) {
+        return value;
+      }
+    })
   : [];
 const isDev = process.env.NODE_ENV !== 'production';
 
