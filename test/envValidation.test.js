@@ -6,6 +6,7 @@ const { validateEnv } = require('../src/config/env');
 const envKeys = [
   'NODE_ENV',
   'AUTH_MODE',
+  'DEV_AUTH_ENABLED',
   'DB_HOST',
   'DB_USER',
   'DB_PASSWORD',
@@ -56,6 +57,23 @@ test('validateEnv requires ALLOWED_ORIGINS in production', () => {
     },
     () => {
       assert.throws(() => validateEnv(), /ALLOWED_ORIGINS is required in production/);
+    },
+  );
+});
+
+test('validateEnv rejects invalid NODE_ENV values', () => {
+  withEnv(
+    {
+      NODE_ENV: 'staging',
+      AUTH_MODE: 'jwt',
+      DB_HOST: '127.0.0.1',
+      DB_USER: 'root',
+      DB_PASSWORD: 'secret',
+      DB_NAME: 'slim30',
+      JWT_SECRET: 'jwt-secret',
+    },
+    () => {
+      assert.throws(() => validateEnv(), /NODE_ENV must be one of/i);
     },
   );
 });
@@ -114,6 +132,47 @@ test('validateEnv requires premium and webhook secrets in production', () => {
     },
     () => {
       assert.throws(() => validateEnv(), /Missing required production secrets/i);
+    },
+  );
+});
+
+test('validateEnv rejects non-jwt auth mode in production', () => {
+  withEnv(
+    {
+      NODE_ENV: 'production',
+      AUTH_MODE: 'auto',
+      DB_HOST: '127.0.0.1',
+      DB_USER: 'root',
+      DB_PASSWORD: 'secret',
+      DB_NAME: 'slim30',
+      JWT_SECRET: 'jwt-secret',
+      PREMIUM_ADMIN_SECRET: 'admin-secret',
+      REVENUECAT_WEBHOOK_SECRET: 'webhook-secret',
+      ALLOWED_ORIGINS: 'https://api.slim30.app',
+    },
+    () => {
+      assert.throws(() => validateEnv(), /AUTH_MODE must be jwt in production/i);
+    },
+  );
+});
+
+test('validateEnv rejects DEV_AUTH_ENABLED=true in production', () => {
+  withEnv(
+    {
+      NODE_ENV: 'production',
+      AUTH_MODE: 'jwt',
+      DEV_AUTH_ENABLED: 'true',
+      DB_HOST: '127.0.0.1',
+      DB_USER: 'root',
+      DB_PASSWORD: 'secret',
+      DB_NAME: 'slim30',
+      JWT_SECRET: 'jwt-secret',
+      PREMIUM_ADMIN_SECRET: 'admin-secret',
+      REVENUECAT_WEBHOOK_SECRET: 'webhook-secret',
+      ALLOWED_ORIGINS: 'https://api.slim30.app',
+    },
+    () => {
+      assert.throws(() => validateEnv(), /DEV_AUTH_ENABLED must be false in production/i);
     },
   );
 });

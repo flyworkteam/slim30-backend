@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.AUTH_MODE = 'dev';
-process.env.DEFAULT_DEV_USER_ID = process.env.DEFAULT_DEV_USER_ID || '1';
+process.env.DEV_AUTH_ENABLED = 'true';
 
 const app = require('../src/app');
 

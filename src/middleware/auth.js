@@ -29,18 +29,26 @@ function parseStrictPositiveInt(value) {
   return null;
 }
 
+function isDevAuthEnabled() {
+  return String(process.env.DEV_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
 function getAuthMode() {
   const mode = String(process.env.AUTH_MODE || '').trim().toLowerCase();
   if (mode === 'jwt' || mode === 'dev' || mode === 'auto') {
     return mode;
   }
 
-  return process.env.NODE_ENV === 'production' ? 'jwt' : 'auto';
+  return 'jwt';
 }
 
 function requireDevUser(req, next) {
+  if (!isDevAuthEnabled()) {
+    return next(new AppError('Dev auth is not enabled', 503));
+  }
+
   const rawHeader = req.headers['x-user-id'];
-  const rawUserId = rawHeader || process.env.DEFAULT_DEV_USER_ID || '1';
+  const rawUserId = rawHeader;
   const userId = parseStrictPositiveInt(rawUserId);
 
   if (userId == null) {
@@ -99,9 +107,6 @@ function requireAuth(req, res, next) {
   }
 
   if (mode === 'dev') {
-    if (process.env.NODE_ENV === 'production') {
-      return next(new AppError('Dev auth is disabled in production', 503));
-    }
     return requireDevUser(req, next);
   }
 
@@ -110,7 +115,7 @@ function requireAuth(req, res, next) {
     return requireJwtUser(req, next);
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' || !isDevAuthEnabled()) {
     return next(new AppError('Missing bearer token', 401));
   }
 

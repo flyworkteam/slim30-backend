@@ -53,6 +53,11 @@ function assertProductionSecrets() {
 }
 
 function validateEnv() {
+  const nodeEnv = String(process.env.NODE_ENV || '').trim().toLowerCase() || 'development';
+  if (!new Set(['development', 'test', 'production']).has(nodeEnv)) {
+    throw new Error('NODE_ENV must be one of: development, test, production');
+  }
+
   const missing = requiredEnv.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
@@ -63,8 +68,17 @@ function validateEnv() {
     throw new Error('AUTH_MODE must be one of: jwt, dev, auto');
   }
 
-  const resolvedMode = mode || (process.env.NODE_ENV === 'production' ? 'jwt' : 'auto');
-  const requiresJwtSecret = resolvedMode === 'jwt' || (process.env.NODE_ENV === 'production' && resolvedMode === 'auto');
+  const devAuthEnabled = String(process.env.DEV_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
+  if (nodeEnv === 'production' && devAuthEnabled) {
+    throw new Error('DEV_AUTH_ENABLED must be false in production');
+  }
+
+  if (nodeEnv === 'production' && (mode === 'dev' || mode === 'auto')) {
+    throw new Error('AUTH_MODE must be jwt in production');
+  }
+
+  const resolvedMode = mode || 'jwt';
+  const requiresJwtSecret = resolvedMode === 'jwt' || (nodeEnv === 'production' && resolvedMode === 'auto');
   if (requiresJwtSecret && !process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET is required when AUTH_MODE is jwt');
   }
