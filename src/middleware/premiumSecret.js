@@ -15,12 +15,12 @@ function parseBearerToken(rawAuthorization) {
     return null;
   }
 
-  const [scheme, token] = authorization.split(' ');
-  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
+  const match = /^Bearer\s+([^\s]+)$/i.exec(authorization);
+  if (!match) {
     return null;
   }
 
-  return token.trim();
+  return match[1];
 }
 
 function safeCompareSecret(provided, expected) {

@@ -123,3 +123,51 @@ test('premium activate route rejects request without admin secret before payload
   assert.equal(body.success, false);
   assert.match(String(body.error), /forbidden premium activation request/i);
 });
+
+test('premium webhook route rejects request without bearer secret', async () => {
+  const previousSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
+  process.env.REVENUECAT_WEBHOOK_SECRET = 'webhook-secret';
+
+  try {
+    const { response, body } = await request('/api/premium/webhook', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event: { type: 'PING' } }),
+    });
+
+    assert.equal(response.status, 401);
+    assert.equal(body.success, false);
+    assert.match(String(body.error), /unauthorized webhook request/i);
+  } finally {
+    if (previousSecret == null) {
+      delete process.env.REVENUECAT_WEBHOOK_SECRET;
+    } else {
+      process.env.REVENUECAT_WEBHOOK_SECRET = previousSecret;
+    }
+  }
+});
+
+test('premium webhook route accepts valid bearer secret', async () => {
+  const previousSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
+  process.env.REVENUECAT_WEBHOOK_SECRET = 'webhook-secret';
+
+  try {
+    const { response, body } = await request('/api/premium/webhook', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer webhook-secret',
+      },
+      body: JSON.stringify({ event: { type: 'PING' } }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+  } finally {
+    if (previousSecret == null) {
+      delete process.env.REVENUECAT_WEBHOOK_SECRET;
+    } else {
+      process.env.REVENUECAT_WEBHOOK_SECRET = previousSecret;
+    }
+  }
+});
