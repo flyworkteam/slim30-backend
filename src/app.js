@@ -74,6 +74,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/onboarding', require('./routes/onboarding'));
