@@ -2,6 +2,18 @@ const { pool } = require('../config/db');
 const { uploadAvatar } = require('../services/cdnService');
 const AppError = require('../utils/appError');
 
+async function ensureDefaultUserExists(userId) {
+  const [rows] = await pool.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
+  if (rows.length > 0) {
+    return;
+  }
+
+  await pool.execute(
+    'INSERT INTO users (id, email, name, language, timezone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+    [userId, null, `User ${userId}`, 'tr', 'Europe/Istanbul'],
+  );
+}
+
 async function uploadAvatarHandler(req, res, next) {
   try {
     if (!req.file) {
@@ -9,6 +21,7 @@ async function uploadAvatarHandler(req, res, next) {
     }
 
     const userId = req.userId;
+    await ensureDefaultUserExists(userId);
 
     const uploadResult = await uploadAvatar({
       userId,
