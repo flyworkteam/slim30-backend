@@ -123,6 +123,24 @@ async function markAllRead(userId) {
   );
 }
 
+async function deleteNotification(userId, notificationId) {
+  const [result] = await pool.execute(
+    `DELETE FROM notifications
+      WHERE user_id = ? AND id = ?`,
+    [userId, notificationId],
+  );
+  return result.affectedRows > 0;
+}
+
+async function deleteAllNotifications(userId) {
+  const [result] = await pool.execute(
+    `DELETE FROM notifications
+      WHERE user_id = ?`,
+    [userId],
+  );
+  return Number(result.affectedRows || 0);
+}
+
 module.exports = {
   getSettings,
   updateSettings,
@@ -130,4 +148,6 @@ module.exports = {
   createNotification,
   markRead,
   markAllRead,
+  deleteNotification,
+  deleteAllNotifications,
 };

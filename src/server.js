@@ -3,12 +3,16 @@ require('dotenv').config();
 const app = require('./app');
 const { validateEnv } = require('./config/env');
 const { testConnection } = require('./config/db');
+const { createNotificationScheduler } = require('./services/notificationAutomationService');
 
 async function start() {
   validateEnv();
   await testConnection();
 
   const port = Number.parseInt(process.env.PORT || '3000', 10);
+  if (process.env.NODE_ENV !== 'test') {
+    createNotificationScheduler();
+  }
   app.listen(port, () => {
     console.log(`Slim30 backend is running on port ${port}`);
   });

@@ -9,8 +9,14 @@ const {
   createNotification,
   markRead,
   markAllRead,
+  deleteNotification,
+  deleteAllNotifications,
 } = require('../src/services/notificationService');
 const { pool } = require('../src/config/db');
+const {
+  dispatchScheduledNotifications,
+  SCHEDULED_ICON_NAME,
+} = require('../src/services/notificationAutomationService');
 
 function isDbConfigured() {
   return Boolean(process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME);
@@ -73,4 +79,89 @@ runOrSkip('notification list/read flows work', async () => {
   assert.equal(listAfter.every((n) => n.isRead === true), true);
 
   await pool.execute('DELETE FROM notifications WHERE user_id = ?', [userId]);
+});
+
+runOrSkip('notification delete flows work', async () => {
+  const userId = 920003;
+  await pool.execute(
+    `INSERT INTO users (id, email, name, language, timezone, created_at, updated_at)
+     VALUES (?, NULL, ?, 'tr', 'Europe/Istanbul', NOW(), NOW())
+     ON DUPLICATE KEY UPDATE id = id`,
+    [userId, `User ${userId}`],
+  );
+  await pool.execute('DELETE FROM notifications WHERE user_id = ?', [userId]);
+
+  await createNotification(userId, { title: 'A', body: 'A body' });
+  await createNotification(userId, { title: 'B', body: 'B body' });
+
+  const before = await getNotifications(userId, 10);
+  assert.equal(before.length, 2);
+
+  const deleted = await deleteNotification(userId, before[0].id);
+  assert.equal(deleted, true);
+
+  const afterSingle = await getNotifications(userId, 10);
+  assert.equal(afterSingle.length, 1);
+
+  const deletedCount = await deleteAllNotifications(userId);
+  assert.equal(deletedCount, 1);
+
+  const afterAll = await getNotifications(userId, 10);
+  assert.equal(afterAll.length, 0);
+});
+
+runOrSkip('scheduled notifications rotate without duplicating the same slot', async () => {
+  const userId = 920004;
+  await pool.execute(
+    `INSERT INTO users (id, email, name, language, timezone, created_at, updated_at)
+     VALUES (?, NULL, ?, 'tr', 'Europe/Istanbul', NOW(), NOW())
+     ON DUPLICATE KEY UPDATE language = VALUES(language), timezone = VALUES(timezone)`,
+    [userId, `User ${userId}`],
+  );
+  await pool.execute('DELETE FROM notifications WHERE user_id = ?', [userId]);
+  await pool.execute('DELETE FROM notification_settings WHERE user_id = ?', [userId]);
+  await pool.execute(
+    `INSERT INTO notification_settings (
+       user_id,
+       daily_reminder_enabled,
+       workout_reminder_enabled,
+       progress_summary_enabled,
+       reminder_hour,
+       created_at,
+       updated_at
+     ) VALUES (?, 1, 1, 1, 9, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE
+       daily_reminder_enabled = VALUES(daily_reminder_enabled),
+       workout_reminder_enabled = VALUES(workout_reminder_enabled),
+       progress_summary_enabled = VALUES(progress_summary_enabled),
+       reminder_hour = VALUES(reminder_hour),
+       updated_at = NOW()`,
+    [userId],
+  );
+
+  await dispatchScheduledNotifications(new Date('2026-04-08T06:03:00.000Z'));
+
+  const firstList = await getNotifications(userId, 10);
+  assert.equal(firstList.length, 1);
+  assert.equal(firstList[0].iconName, SCHEDULED_ICON_NAME);
+
+  await dispatchScheduledNotifications(new Date('2026-04-08T06:10:00.000Z'));
+  const afterDuplicateAttempt = await getNotifications(userId, 10);
+  assert.equal(afterDuplicateAttempt.length, 1);
+
+  await pool.execute(
+    `UPDATE notifications
+        SET created_at = DATE_SUB(created_at, INTERVAL 6 HOUR)
+      WHERE user_id = ? AND icon_name = ?`,
+    [userId, SCHEDULED_ICON_NAME],
+  );
+
+  await dispatchScheduledNotifications(new Date('2026-04-08T12:03:00.000Z'));
+
+  const secondList = await getNotifications(userId, 10);
+  assert.equal(secondList.length, 2);
+  assert.notEqual(secondList[0].body, secondList[1].body);
+
+  await pool.execute('DELETE FROM notifications WHERE user_id = ?', [userId]);
+  await pool.execute('DELETE FROM notification_settings WHERE user_id = ?', [userId]);
 });

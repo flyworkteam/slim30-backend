@@ -14,6 +14,8 @@ const {
   createNotificationForUser,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotificationForUser,
+  deleteAllNotificationsForUser,
 } = require('../controllers/notificationController');
 
 const router = express.Router();
@@ -24,7 +26,9 @@ router.get('/settings', getNotificationSettings);
 router.put('/settings', validateRequest({ body: validateSettingsPayload }), updateNotificationSettings);
 router.get('/', validateRequest({ query: validateNotificationListQuery }), listNotifications);
 router.post('/', validateRequest({ body: validateCreateNotificationPayload }), createNotificationForUser);
+router.delete('/', deleteAllNotificationsForUser);
 router.put('/read-all', markAllNotificationsRead);
 router.put('/:id/read', validateRequest({ params: validateNotificationIdParams }), markNotificationRead);
+router.delete('/:id', validateRequest({ params: validateNotificationIdParams }), deleteNotificationForUser);
 
 module.exports = router;

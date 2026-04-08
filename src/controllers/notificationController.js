@@ -10,6 +10,8 @@ const {
   createNotification,
   markRead,
   markAllRead,
+  deleteNotification,
+  deleteAllNotifications,
 } = require('../services/notificationService');
 
 async function getNotificationSettings(req, res, next) {
@@ -104,6 +106,41 @@ async function markAllNotificationsRead(req, res, next) {
   }
 }
 
+async function deleteNotificationForUser(req, res, next) {
+  try {
+    const notificationId = req.validated?.params?.id ?? parseNotificationId(req.params.id);
+    if (notificationId == null) {
+      throw new AppError('Invalid notification id', 400);
+    }
+
+    const deleted = await deleteNotification(req.userId, notificationId);
+    if (!deleted) {
+      throw new AppError('Notification not found', 404);
+    }
+
+    res.json({
+      success: true,
+      data: { deleted: true },
+      error: null,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteAllNotificationsForUser(req, res, next) {
+  try {
+    const deletedCount = await deleteAllNotifications(req.userId);
+    res.json({
+      success: true,
+      data: { deletedCount },
+      error: null,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   parseNotificationId,
   validateSettingsPayload,
@@ -113,4 +150,6 @@ module.exports = {
   createNotificationForUser,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotificationForUser,
+  deleteAllNotificationsForUser,
 };
