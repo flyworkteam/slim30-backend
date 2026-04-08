@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const AppError = require('../utils/appError');
+const { normalizeLanguageCode } = require('../utils/locale');
 
 const defaultTrialHours = 24;
 
@@ -11,12 +12,13 @@ function parseTrialDurationHours() {
   return value;
 }
 
-async function ensureDefaultUserExists(userId) {
+async function ensureDefaultUserExists(userId, languageCode = 'en') {
+  const resolvedLanguage = normalizeLanguageCode(languageCode) || 'en';
   await pool.execute(
     `INSERT INTO users (id, email, name, language, timezone, created_at, updated_at)
-     VALUES (?, NULL, ?, 'tr', 'Europe/Istanbul', NOW(), NOW())
+     VALUES (?, NULL, ?, ?, 'Europe/Istanbul', NOW(), NOW())
      ON DUPLICATE KEY UPDATE id = id`,
-    [userId, `User ${userId}`],
+    [userId, `User ${userId}`, resolvedLanguage],
   );
 }
 
@@ -32,8 +34,8 @@ function isPremiumActive(user) {
   return new Date(user.premium_expires_at) > new Date();
 }
 
-async function getPremiumStatus(userId) {
-  await ensureDefaultUserExists(userId);
+async function getPremiumStatus(userId, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
 
   const [rows] = await pool.execute(
     `SELECT is_premium, premium_expires_at, trial_used
@@ -81,8 +83,8 @@ async function getPremiumStatus(userId) {
   };
 }
 
-async function startTrial(userId) {
-  await ensureDefaultUserExists(userId);
+async function startTrial(userId, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
 
   const trialHours = parseTrialDurationHours();
   const startsAt = new Date();
@@ -120,11 +122,11 @@ async function startTrial(userId) {
     conn.release();
   }
 
-  return getPremiumStatus(userId);
+  return getPremiumStatus(userId, languageCode);
 }
 
-async function activatePremium(userId, payload) {
-  await ensureDefaultUserExists(userId);
+async function activatePremium(userId, payload, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
 
   const startsAt = new Date();
   const expiresAt = payload.expiresAt ? new Date(payload.expiresAt) : null;
@@ -165,7 +167,7 @@ async function activatePremium(userId, payload) {
     conn.release();
   }
 
-  return getPremiumStatus(userId);
+  return getPremiumStatus(userId, languageCode);
 }
 
 async function processWebhookEvent(event) {

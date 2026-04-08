@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const AppError = require('./utils/appError');
+const { resolveRequestLanguage } = require('./utils/locale');
 
 const app = express();
 
@@ -52,6 +53,11 @@ app.use(
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
+app.use((req, res, next) => {
+  void res;
+  req.locale = resolveRequestLanguage(req.headers);
+  next();
+});
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

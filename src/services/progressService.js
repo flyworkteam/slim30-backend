@@ -1,13 +1,15 @@
 const { pool } = require('../config/db');
+const { normalizeLanguageCode } = require('../utils/locale');
 
 const totalDays = 30;
 
-async function ensureDefaultUserExists(userId) {
+async function ensureDefaultUserExists(userId, languageCode = 'en') {
+  const resolvedLanguage = normalizeLanguageCode(languageCode) || 'en';
   await pool.execute(
     `INSERT INTO users (id, email, name, language, timezone, created_at, updated_at)
-     VALUES (?, NULL, ?, 'tr', 'Europe/Istanbul', NOW(), NOW())
+     VALUES (?, NULL, ?, ?, 'Europe/Istanbul', NOW(), NOW())
      ON DUPLICATE KEY UPDATE id = id`,
-    [userId, `User ${userId}`],
+    [userId, `User ${userId}`, resolvedLanguage],
   );
 }
 
@@ -25,8 +27,8 @@ function buildDaysFromRows(rows) {
   });
 }
 
-async function getProgressDays(userId) {
-  await ensureDefaultUserExists(userId);
+async function getProgressDays(userId, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
   const [rows] = await pool.execute(
     `SELECT day_number, completed, completed_at
      FROM user_workout_progress
@@ -37,8 +39,8 @@ async function getProgressDays(userId) {
   return buildDaysFromRows(rows);
 }
 
-async function upsertProgressDay(userId, dayNumber, completed) {
-  await ensureDefaultUserExists(userId);
+async function upsertProgressDay(userId, dayNumber, completed, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
   const completedAt = completed ? new Date() : null;
 
   await pool.execute(
@@ -71,8 +73,8 @@ async function upsertProgressDay(userId, dayNumber, completed) {
   };
 }
 
-async function getExerciseProgressByDay(userId, dayNumber) {
-  await ensureDefaultUserExists(userId);
+async function getExerciseProgressByDay(userId, dayNumber, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
   const [rows] = await pool.execute(
     `SELECT day_number, exercise_index, exercise_title, completed, seconds_spent, completed_at
      FROM user_exercise_progress
@@ -96,8 +98,9 @@ async function upsertExerciseProgressDay(
   dayNumber,
   exerciseIndex,
   { completed, secondsSpent, exerciseTitle },
+  languageCode,
 ) {
-  await ensureDefaultUserExists(userId);
+  await ensureDefaultUserExists(userId, languageCode);
   const completedAt = completed ? new Date() : null;
 
   await pool.execute(
@@ -156,8 +159,8 @@ async function upsertExerciseProgressDay(
   };
 }
 
-async function getProgressSummary(userId) {
-  await ensureDefaultUserExists(userId);
+async function getProgressSummary(userId, languageCode) {
+  await ensureDefaultUserExists(userId, languageCode);
   const [dayRows] = await pool.execute(
     `SELECT COUNT(*) AS completed_count
      FROM user_workout_progress

@@ -9,7 +9,7 @@ const {
 
 async function getStatus(req, res, next) {
   try {
-    const status = await getPremiumStatus(req.userId);
+    const status = await getPremiumStatus(req.userId, req.locale);
     res.json({
       success: true,
       data: { status },
@@ -22,7 +22,7 @@ async function getStatus(req, res, next) {
 
 async function startTrialHandler(req, res, next) {
   try {
-    const status = await startTrial(req.userId);
+    const status = await startTrial(req.userId, req.locale);
     res.status(201).json({
       success: true,
       data: { status },
@@ -36,7 +36,7 @@ async function startTrialHandler(req, res, next) {
 async function activateHandler(req, res, next) {
   try {
     const payload = req.validated?.body || validateActivatePayload(req.body);
-    const status = await activatePremium(req.userId, payload);
+    const status = await activatePremium(req.userId, payload, req.locale);
     res.status(201).json({
       success: true,
       data: { status },

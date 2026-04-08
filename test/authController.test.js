@@ -157,7 +157,7 @@ test('createGuestSession creates guest user and returns backend JWT', async () =
     queries.push({ query, params });
 
     if (query.includes('INSERT INTO users (firebase_uid, email, name, language, timezone, avatar_url')) {
-      assert.deepEqual(params, ['Guest', 'tr', 'Europe/Istanbul']);
+      assert.deepEqual(params, ['Guest', 'en', 'Europe/Istanbul']);
       return [{ insertId: 13 }];
     }
 
@@ -203,6 +203,60 @@ test('createGuestSession creates guest user and returns backend JWT', async () =
     assert.equal(payload.data.token, 'guest-backend-jwt-token');
     assert.equal(payload.data.user.id, 13);
     assert.equal(payload.data.user.firebase_uid, null);
+    assert.equal(payload.error, null);
+  } finally {
+    restore();
+  }
+});
+
+test('createGuestSession stores requested locale when provided by middleware', async () => {
+  const execute = async (query, params) => {
+    if (query.includes('INSERT INTO users (firebase_uid, email, name, language, timezone, avatar_url')) {
+      assert.deepEqual(params, ['Guest', 'tr', 'Europe/Istanbul']);
+      return [{ insertId: 21 }];
+    }
+
+    if (query.includes('SELECT id, firebase_uid')) {
+      return [[{ id: 21, firebase_uid: null, name: 'Guest', is_deleted: 0 }]];
+    }
+
+    throw new Error(`Unexpected query: ${query}`);
+  };
+
+  const { controller, restore } = loadControllerWithStubs({
+    execute,
+    verifyFirebaseIdToken: async () => {
+      throw new Error('Firebase should not be called');
+    },
+    signAuthToken: ({ userId, firebaseUid }) => {
+      assert.equal(userId, 21);
+      assert.equal(firebaseUid, null);
+      return 'guest-backend-jwt-token';
+    },
+  });
+
+  const req = { locale: 'tr-TR' };
+  let statusCode = 200;
+  let payload = null;
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(value) {
+      payload = value;
+    },
+  };
+
+  try {
+    await controller.createGuestSession(req, res, (error) => {
+      throw error;
+    });
+
+    assert.equal(statusCode, 201);
+    assert.equal(payload.success, true);
+    assert.equal(payload.data.token, 'guest-backend-jwt-token');
+    assert.equal(payload.data.user.id, 21);
     assert.equal(payload.error, null);
   } finally {
     restore();

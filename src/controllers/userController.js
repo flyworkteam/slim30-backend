@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const AppError = require('../utils/appError');
+const { normalizeLanguageCode } = require('../utils/locale');
 
 function validateProfilePayload(body) {
   const allowedKeys = new Set([
@@ -73,7 +74,8 @@ function validateProfilePayload(body) {
   }
 }
 
-async function ensureDefaultUserExists(userId) {
+async function ensureDefaultUserExists(userId, languageCode = 'en') {
+  const resolvedLanguage = normalizeLanguageCode(languageCode) || 'en';
   const [rows] = await pool.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
   if (rows.length > 0) {
     return;
@@ -81,14 +83,14 @@ async function ensureDefaultUserExists(userId) {
 
   await pool.execute(
     'INSERT INTO users (id, email, name, language, timezone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
-    [userId, null, `User ${userId}`, 'tr', 'Europe/Istanbul'],
+    [userId, null, `User ${userId}`, resolvedLanguage, 'Europe/Istanbul'],
   );
 }
 
 async function getProfile(req, res, next) {
   try {
     const userId = req.userId;
-    await ensureDefaultUserExists(userId);
+    await ensureDefaultUserExists(userId, req.locale);
 
     const [rows] = await pool.execute(
       `SELECT id, email, name, age, gender, height_cm, weight_kg, target_weight_kg,
@@ -116,7 +118,7 @@ async function getProfile(req, res, next) {
 async function updateProfile(req, res, next) {
   try {
     const userId = req.userId;
-    await ensureDefaultUserExists(userId);
+    await ensureDefaultUserExists(userId, req.locale);
     validateProfilePayload(req.body || {});
 
     const {

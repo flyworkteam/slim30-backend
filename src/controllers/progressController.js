@@ -17,7 +17,7 @@ const { buildWorkoutDay } = require('../services/workoutProgramService');
 
 async function getDays(req, res, next) {
   try {
-    const days = await getProgressDays(req.userId);
+    const days = await getProgressDays(req.userId, req.locale);
     res.json({
       success: true,
       data: { days },
@@ -36,7 +36,12 @@ async function updateDay(req, res, next) {
     }
 
     const completed = req.validated?.body?.completed ?? validateProgressUpdatePayload(req.body).completed;
-    const updatedDay = await upsertProgressDay(req.userId, day, completed);
+    const updatedDay = await upsertProgressDay(
+      req.userId,
+      day,
+      completed,
+      req.locale,
+    );
 
     res.json({
       success: true,
@@ -50,7 +55,7 @@ async function updateDay(req, res, next) {
 
 async function getSummary(req, res, next) {
   try {
-    const summary = await getProgressSummary(req.userId);
+    const summary = await getProgressSummary(req.userId, req.locale);
     res.json({
       success: true,
       data: { summary },
@@ -68,7 +73,7 @@ async function getDayExercises(req, res, next) {
       throw new AppError(`day must be between 1 and ${totalDays}`, 400);
     }
 
-    const exercises = await getExerciseProgressByDay(req.userId, day);
+    const exercises = await getExerciseProgressByDay(req.userId, day, req.locale);
     res.json({
       success: true,
       data: { day, exercises },
@@ -102,10 +107,16 @@ async function updateDayExercise(req, res, next) {
       throw new AppError('exercise is out of range for day', 400);
     }
 
-    const updatedExercise = await upsertExerciseProgressDay(req.userId, day, exercise, {
-      ...payload,
-      exerciseTitle: canonicalExercise.name,
-    });
+    const updatedExercise = await upsertExerciseProgressDay(
+      req.userId,
+      day,
+      exercise,
+      {
+        ...payload,
+        exerciseTitle: canonicalExercise.name,
+      },
+      req.locale,
+    );
     res.json({
       success: true,
       data: { exercise: updatedExercise },
