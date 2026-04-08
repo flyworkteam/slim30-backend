@@ -113,6 +113,21 @@ async function getUserById(userId) {
   return user;
 }
 
+async function createGuestUser() {
+  const [insertResult] = await pool.execute(
+    `INSERT INTO users (firebase_uid, email, name, language, timezone, avatar_url, created_at, updated_at)
+     VALUES (NULL, NULL, ?, ?, ?, NULL, NOW(), NOW())`,
+    ['Guest', 'tr', 'Europe/Istanbul'],
+  );
+
+  const userId = Number(insertResult.insertId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new AppError('Guest user could not be created', 500);
+  }
+
+  return { userId, firebaseUid: null };
+}
+
 async function exchangeFirebaseToken(req, res, next) {
   try {
     const firebaseToken = req.validated?.body?.firebaseToken;
@@ -134,6 +149,28 @@ async function exchangeFirebaseToken(req, res, next) {
   }
 }
 
+async function createGuestSession(req, res, next) {
+  void req;
+
+  try {
+    const { userId, firebaseUid } = await createGuestUser();
+    const user = await getUserById(userId);
+    const token = signAuthToken({ userId, firebaseUid });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        token,
+        user,
+      },
+      error: null,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
+  createGuestSession,
   exchangeFirebaseToken,
 };
