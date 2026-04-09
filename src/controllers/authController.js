@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { executeWithRetry } = require('../config/db');
 const { verifyFirebaseIdToken } = require('../config/firebaseAdmin');
 const { signAuthToken } = require('../utils/jwt');
 const AppError = require('../utils/appError');
@@ -30,18 +30,22 @@ function normalizeOptionalHttpsUrl(value) {
   }
 }
 
-async function upsertUserByFirebaseUid(decodedToken, languageCode = 'en') {
+async function upsertUserByFirebaseUid(decodedToken, languageCode = 'en', profileHint = {}) {
   const firebaseUid = normalizeOptionalString(decodedToken?.uid);
   if (!firebaseUid) {
     throw new AppError('Firebase token does not contain uid', 401);
   }
 
   const resolvedLanguage = normalizeLanguageCode(languageCode) || 'en';
-  const email = normalizeOptionalString(decodedToken.email);
-  const name = normalizeOptionalString(decodedToken.name);
-  const avatarUrl = normalizeOptionalHttpsUrl(decodedToken.picture);
+  const hintedEmail = normalizeOptionalString(profileHint.email);
+  const hintedName = normalizeOptionalString(profileHint.displayName);
+  const hintedPhotoUrl = normalizeOptionalHttpsUrl(profileHint.photoUrl);
 
-  const [existingRows] = await pool.execute(
+  const email = hintedEmail || normalizeOptionalString(decodedToken.email);
+  const name = hintedName || normalizeOptionalString(decodedToken.name);
+  const avatarUrl = hintedPhotoUrl || normalizeOptionalHttpsUrl(decodedToken.picture);
+
+  const [existingRows] = await executeWithRetry(
     'SELECT id, is_deleted FROM users WHERE firebase_uid = ? LIMIT 1',
     [firebaseUid],
   );
@@ -52,20 +56,20 @@ async function upsertUserByFirebaseUid(decodedToken, languageCode = 'en') {
       throw new AppError('Account is deleted', 410);
     }
 
-    await pool.execute(
+    await executeWithRetry(
       `UPDATE users
        SET email = COALESCE(?, email),
-           name = COALESCE(?, name),
+           name = CASE WHEN ? IS NOT NULL THEN ? ELSE name END,
            avatar_url = COALESCE(?, avatar_url),
            updated_at = NOW()
        WHERE id = ?`,
-      [email, name, avatarUrl, userId],
+      [email, name, name, avatarUrl, userId],
     );
     return { userId, firebaseUid };
   }
 
   try {
-    const [insertResult] = await pool.execute(
+    const [insertResult] = await executeWithRetry(
       `INSERT INTO users (firebase_uid, email, name, language, timezone, avatar_url, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [firebaseUid, email, name || 'User', resolvedLanguage, 'Europe/Istanbul', avatarUrl],
@@ -77,7 +81,7 @@ async function upsertUserByFirebaseUid(decodedToken, languageCode = 'en') {
     };
   } catch (error) {
     if (error && error.code === 'ER_DUP_ENTRY') {
-      const [rows] = await pool.execute(
+      const [rows] = await executeWithRetry(
         'SELECT id, is_deleted FROM users WHERE firebase_uid = ? LIMIT 1',
         [firebaseUid],
       );
@@ -96,7 +100,7 @@ async function upsertUserByFirebaseUid(decodedToken, languageCode = 'en') {
 }
 
 async function getUserById(userId) {
-  const [rows] = await pool.execute(
+  const [rows] = await executeWithRetry(
     `SELECT id, firebase_uid, email, name, age, gender, height_cm, weight_kg,
             target_weight_kg, language, timezone, avatar_url, is_deleted,
             created_at, updated_at
@@ -117,7 +121,7 @@ async function getUserById(userId) {
 
 async function createGuestUser(languageCode = 'en') {
   const resolvedLanguage = normalizeLanguageCode(languageCode) || 'en';
-  const [insertResult] = await pool.execute(
+  const [insertResult] = await executeWithRetry(
     `INSERT INTO users (firebase_uid, email, name, language, timezone, avatar_url, created_at, updated_at)
      VALUES (NULL, NULL, ?, ?, ?, NULL, NOW(), NOW())`,
     ['Guest', resolvedLanguage, 'Europe/Istanbul'],
@@ -134,8 +138,13 @@ async function createGuestUser(languageCode = 'en') {
 async function exchangeFirebaseToken(req, res, next) {
   try {
     const firebaseToken = req.validated?.body?.firebaseToken;
+    const profileHint = {
+      displayName: req.validated?.body?.displayName ?? null,
+      email: req.validated?.body?.email ?? null,
+      photoUrl: req.validated?.body?.photoUrl ?? null,
+    };
     const decodedToken = await verifyFirebaseIdToken(firebaseToken);
-    const { userId, firebaseUid } = await upsertUserByFirebaseUid(decodedToken, req.locale);
+    const { userId, firebaseUid } = await upsertUserByFirebaseUid(decodedToken, req.locale, profileHint);
     const user = await getUserById(userId);
     const token = signAuthToken({ userId, firebaseUid });
 

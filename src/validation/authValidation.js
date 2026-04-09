@@ -12,7 +12,25 @@ function validateFirebaseExchangePayload(body) {
     throw new AppError('firebase_token is required', 400);
   }
 
-  return { firebaseToken };
+  const displayName =
+    typeof body.display_name === 'string' && body.display_name.trim().length > 0
+      ? body.display_name.trim()
+      : null;
+  const email =
+    typeof body.email === 'string' && body.email.trim().length > 0
+      ? body.email.trim()
+      : null;
+  const photoUrl =
+    typeof body.photo_url === 'string' && body.photo_url.trim().length > 0
+      ? body.photo_url.trim()
+      : null;
+
+  return {
+    firebaseToken,
+    displayName,
+    email,
+    photoUrl,
+  };
 }
 
 module.exports = {
