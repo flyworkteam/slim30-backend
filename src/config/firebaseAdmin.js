@@ -10,7 +10,23 @@ function resolveServiceAccountPath() {
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './config/firebase-service-account.json',
   ).trim();
 
-  return path.resolve(process.cwd(), configured);
+  if (path.isAbsolute(configured)) {
+    return configured;
+  }
+
+  const projectRoot = path.resolve(__dirname, '..', '..');
+  const candidates = [
+    path.resolve(process.cwd(), configured),
+    path.resolve(projectRoot, configured),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
 }
 
 function initializeFirebaseAdmin() {
