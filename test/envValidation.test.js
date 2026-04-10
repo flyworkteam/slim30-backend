@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { validateEnv } = require('../src/config/env');
 
@@ -15,7 +17,22 @@ const envKeys = [
   'ALLOWED_ORIGINS',
   'PREMIUM_ADMIN_SECRET',
   'REVENUECAT_WEBHOOK_SECRET',
+  'FIREBASE_SERVICE_ACCOUNT_PATH',
+  'FIREBASE_SERVICE_ACCOUNT_JSON',
 ];
+
+const baseProdEnv = {
+  NODE_ENV: 'production',
+  AUTH_MODE: 'jwt',
+  DB_HOST: '127.0.0.1',
+  DB_USER: 'root',
+  DB_PASSWORD: 'secret',
+  DB_NAME: 'slim30',
+  JWT_SECRET: 'jwt-secret',
+  PREMIUM_ADMIN_SECRET: 'admin-secret',
+  REVENUECAT_WEBHOOK_SECRET: 'webhook-secret',
+  ALLOWED_ORIGINS: 'https://api.slim30.app',
+};
 
 function withEnv(overrides, fn) {
   const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
@@ -180,16 +197,77 @@ test('validateEnv rejects DEV_AUTH_ENABLED=true in production', () => {
 test('validateEnv passes with secure production config', () => {
   withEnv(
     {
-      NODE_ENV: 'production',
-      AUTH_MODE: 'jwt',
-      DB_HOST: '127.0.0.1',
-      DB_USER: 'root',
-      DB_PASSWORD: 'secret',
-      DB_NAME: 'slim30',
-      JWT_SECRET: 'jwt-secret',
-      PREMIUM_ADMIN_SECRET: 'admin-secret',
-      REVENUECAT_WEBHOOK_SECRET: 'webhook-secret',
+      ...baseProdEnv,
       ALLOWED_ORIGINS: 'https://api.slim30.app,https://app.slim30.app',
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{"project_id":"p"}',
+    },
+    () => {
+      assert.doesNotThrow(() => validateEnv());
+    },
+  );
+});
+
+test('validateEnv rejects invalid FIREBASE_SERVICE_ACCOUNT_PATH in production', () => {
+  withEnv(
+    {
+      ...baseProdEnv,
+      FIREBASE_SERVICE_ACCOUNT_PATH: './config/does-not-exist.json',
+    },
+    () => {
+      assert.throws(() => validateEnv(), /FIREBASE_SERVICE_ACCOUNT_PATH does not exist/i);
+    },
+  );
+});
+
+test('validateEnv accepts valid FIREBASE_SERVICE_ACCOUNT_PATH in production', () => {
+  const tmpDir = fs.mkdtempSync(path.join(__dirname, 'tmp-firebase-'));
+  const fixturePath = path.join(tmpDir, 'firebase-service-account.json');
+  fs.writeFileSync(fixturePath, '{"project_id":"p"}', 'utf8');
+
+  withEnv(
+    {
+      ...baseProdEnv,
+      FIREBASE_SERVICE_ACCOUNT_PATH: fixturePath,
+    },
+    () => {
+      assert.doesNotThrow(() => validateEnv());
+    },
+  );
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('validateEnv rejects invalid FIREBASE_SERVICE_ACCOUNT_JSON in production', () => {
+  withEnv(
+    {
+      ...baseProdEnv,
+      FIREBASE_SERVICE_ACCOUNT_JSON: 'not-json',
+    },
+    () => {
+      assert.throws(() => validateEnv(), /FIREBASE_SERVICE_ACCOUNT_JSON is invalid/i);
+    },
+  );
+});
+
+test('validateEnv accepts base64 FIREBASE_SERVICE_ACCOUNT_JSON in production', () => {
+  const base64Json = Buffer.from('{"project_id":"p"}', 'utf8').toString('base64');
+  withEnv(
+    {
+      ...baseProdEnv,
+      FIREBASE_SERVICE_ACCOUNT_JSON: base64Json,
+    },
+    () => {
+      assert.doesNotThrow(() => validateEnv());
+    },
+  );
+});
+
+test('validateEnv prefers valid FIREBASE_SERVICE_ACCOUNT_JSON when FIREBASE_SERVICE_ACCOUNT_PATH is invalid', () => {
+  withEnv(
+    {
+      ...baseProdEnv,
+      FIREBASE_SERVICE_ACCOUNT_PATH: './config/does-not-exist.json',
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{"project_id":"p"}',
     },
     () => {
       assert.doesNotThrow(() => validateEnv());
